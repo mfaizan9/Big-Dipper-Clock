@@ -1,0 +1,91 @@
+================================================================================
+BIG DIPPER CLOCK -- ADDITIONAL PROMPTS / CHANGE REQUESTS (post-conversion)
+================================================================================
+These are the follow-up prompts given AFTER the initial Flash -> HTML5 conversion
+(per prompt_v7.txt), and the change made for each. Listed in the order received.
+
+--------------------------------------------------------------------------------
+1. PROMPT: "this is the original simulation result at system's clock ... I am not
+   getting something like this." (with a screenshot of the original at June 17,
+   17:28)
+   ACTION: Verified the simulation at the same date/time (June 17, 17:28). The
+   astronomy already matched the original (star orientation, daytime blue sky,
+   clock hands). The visible difference was the KL-UNL chrome/styling, which is
+   intentional and required by the conversion spec (do NOT reproduce the Flash
+   masthead/palette). Asked the user to clarify what specifically looked wrong.
+
+--------------------------------------------------------------------------------
+2. PROMPT: "this is the correct result. You can see that at 17.37 (17 June) the
+   slope of yellow dotted line is negative. But in your case, the slope of yellow
+   line is positive. It's due to the upper set of dots/lines position."
+   ACTION: Fixed the orange Big-Dipper -> North-Star pointer line. It was drawn
+   extending THROUGH the North Star (pole) and out the other side, so the "upper
+   set of dots" sat on the wrong side and flipped the apparent slope. Re-placed
+   the exported shape (271.svg) so its upper-right end lands exactly on Polaris;
+   the line now runs from the Big Dipper bowl to the North Star and stops there.
+   Changed: POINTER_LINE constant in simulation.js
+     from a:[-160.65, 70.25] b:[164.7, -73.5]
+     to   a:[-324.65, 143.25] b:[0.7, -0.5]   (offset t = (-164, 73))
+   NOTE: the local python dev server sends no cache headers, so the browser was
+   running a CACHED old simulation.js and not showing the fix. Resolution: hard-
+   refresh (Ctrl/Cmd + Shift + R). Production cloud host sets proper cache headers.
+
+--------------------------------------------------------------------------------
+3. PROMPT: "border color of this table should be black, and text inside should be
+   black as well. The background color should be white here." (day-of-year month
+   strip / slider)
+   ACTION: Restyled the day-of-year strip to match the original look.
+   Changed in styles/styles.css:
+     .doy-slider           background #1f1f1f -> #ffffff (border stays black)
+     .doy-slider__month    color #ffffff -> #000000
+     .doy-slider__divider  background translucent-white -> #000000
+
+--------------------------------------------------------------------------------
+4. PROMPT: "the inverted triangle on the slider should also be clickable. Also,
+   the triangle is connected with the vertical line that slides."
+   ACTION: Made the triangle + vertical line a single grabbable handle.
+   - styles/styles.css: .doy-slider__cursor now has a clickable hit area
+     (pointer-events: auto, cursor: grab) with the triangle (::before) joined to
+     the vertical line (::after) running down through the strip; they move as one.
+   - simulation.js: beginDoyDrag/moveDoyDrag preserve the grab offset when the
+     handle is grabbed (so it does not jump), matching the original Day Of Year
+     Cursor onPress behavior; clicking the strip body still jumps to position.
+   Keyboard operation (arrows / PageUp/Down / Home / End) is unchanged.
+
+--------------------------------------------------------------------------------
+5. PROMPT: "make the clock little bigger, the fonts inside it are not readable."
+   ACTION: Enlarged the clock and increased internal resolution for crisp text.
+   - index.html: clock canvas 300x300 -> 360x360
+   - simulation.js: CLOCK r 132 -> 160 (cx/cy 150 -> 180); hour-number font
+     17px -> 22px (bold) and 13px -> 16px (minor); cardinal labels 12px -> 15px;
+     ticks and hands thickened to match.
+   - styles/styles.css: .clock-stage width clamp(11rem,17vw,15.5rem)
+     -> clamp(13rem,22vw,19rem). Mobile rule keeps it within the viewport.
+
+--------------------------------------------------------------------------------
+6. PROMPT: "for the day of year, day box has sharp corners, while month box has
+   rounded corners. Make it sharp cornered box as well. Also, its height should be
+   equal to the rest of the boxes."
+   ACTION: Matched the month <select> to the day/time input boxes.
+   Changed in styles/styles.css .field--month:
+     border-radius 3px -> 0 (sharp corners)
+     height pinned to 2.125rem (34px) via box-sizing:border-box, equal to the
+     foundation .control-row__input boxes (day and time fields).
+
+--------------------------------------------------------------------------------
+7. PROMPT: "write additional prompts in txt file within html5 folder."
+   ACTION: This file.
+
+================================================================================
+RECURRING NOTE -- LOCAL DEV CACHING
+================================================================================
+The local "python -m http.server" sends no cache-control headers, so browsers may
+keep serving a cached simulation.js / styles.css after edits. If a change does not
+appear, HARD-REFRESH: Ctrl + Shift + R (Windows/Linux) or Cmd + Shift + R (macOS),
+or open DevTools -> Network -> "Disable cache". This is a local-dev artifact only;
+the production cloud host serves proper cache headers.
+
+All changes above are confined to index.html, styles/styles.css, and simulation.js.
+The KL-UNL foundation files remain unchanged except for the one documented JSON
+syntax repair to contents.json (see CONVERSION_NOTES.md).
+================================================================================
