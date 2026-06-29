@@ -86,3 +86,75 @@ Target: WCAG 2.1 AA (AAA where reasonable). Human screen-reader QA is still requ
   accessible equivalent. Confirm with a real screen reader that the descriptions are
   announced at a comfortable cadence and that the slider value text reads well.
 - DST detection depends on the viewer's OS/browser time zone (as in the original).
+
+---
+
+## AUDIO / SCREEN-READER PASS
+
+A dedicated pass to make the sim fully usable by audio alone (NVDA on Windows,
+VoiceOver on macOS). Behavior, layout, visuals, physics, and on-screen text were
+**not** changed; only screen-reader semantics were added. **Final confirmation still
+requires a human listening test on NVDA (Windows) and VoiceOver (macOS)** — screen-
+reader compatibility is not claimed as verified.
+
+### Values made units-complete (quantity + number + unit, spoken as words)
+- **Time of day** — committed value is announced as, e.g.,
+  `"... time of day 13 hours 17 minutes (1:17 PM) ..."` (units "hours"/"minutes" as
+  words, plus the natural 12-hour clock form). Singular/plural handled (1 hour, 1
+  minute). The hour/minute `<input>`s sit in a `<fieldset>` whose `<legend>` is
+  "the time of day:", and each has an `.sr-only` `<label>` ("hour (0 to 23)",
+  "minute (0 to 59)").
+- **Day of year** — the strip slider exposes `aria-valuetext`, e.g.
+  `"June 17 (day 168 of 365)"` (month name + day of month + day number out of 365),
+  updated on every change; `aria-label="Day of year"`. The day `<input>` + month
+  `<select>` sit in the "the day of year:" `<fieldset>`.
+- **Daylight saving** — spoken as the words "Daylight saving time in effect." in both
+  the status announcement and the clock description (never by color/visual only).
+- **Sky state** — spoken as words: "daytime, sky bright" / "twilight" /
+  "night, sky dark and stars prominent".
+
+This sim contains **no scientific-unit values** (no degrees/eV/nm/kelvin, no negative
+numbers, no coordinate pairs), so the only unit words needed are **hours / minutes**
+and the day-of-year count; there are no skipped unit symbols or "minus/negative"
+cases to handle. (Mapping rule applied where relevant: h/m → "hours"/"minutes".)
+
+### Live-region status announcements (commit-time, debounced)
+- A single dedicated polite live region `#sim-status` (`role="status"`,
+  `aria-live="polite"`, `.sr-only`) carries "what changed" sentences. It is driven
+  from `announce()` in `simulation.js` and fires **only on commit/release**, never per
+  drag tick (verified: the status text does not change during a clock/strip drag and
+  updates exactly once on pointer-up). Wording examples:
+  - `"Time changed. June 17, time of day 13 hours 17 minutes (1:17 PM). The sky is daytime, sky bright. Daylight saving time in effect."`
+  - `"Date changed. ..."`, `"Set to system clock. ..."`, `"Simulation reset. ..."`
+  - `"Constellation labels and pointer line shown."` / `"... hidden."`
+  - Invalid time/date entries: `"Invalid time entry ignored. ..."` / `"Invalid date entry ignored. ..."`
+- It is **empty at page load** (so nothing is auto-announced on load).
+- The day-of-year slider's value change from the keyboard is announced by the slider
+  itself (its `aria-valuetext`), so `#sim-status` is intentionally **not** also fired
+  on slider keypress — this avoids double-announcement. Pointer drags of the slider
+  (which the slider does not auto-announce) do fire `#sim-status` on release.
+
+### Canvas descriptions (read on demand, not live)
+- Both canvases are `role="img"` with a static `aria-label` ("Northern sky diagram" /
+  "Time of day clock") plus an `aria-describedby` block updated every render from
+  state:
+  - `#sky-desc`: "Northern sky looking due north on June 17 at 1:17 PM. The Big Dipper,
+    Little Dipper and Cassiopeia circle the North Star. It is currently daytime (sky
+    bright)."
+  - `#clock-desc`: "Clock reads 1:17 PM. Daylight saving time is in effect."
+- These description elements are **not** `aria-live` (so navigating the page does not
+  flood); the previous `aria-live` on `#sky-desc` was removed and that role handed to
+  `#sim-status`. Decorative canvas content carries no extra ARIA noise.
+
+### Controls
+- Every control is keyboard-reachable in reading order and announces name + value:
+  hour/minute inputs, day input, month `<select>`, "show details" checkbox,
+  "set to system clock" button (descriptive name), masthead Reset/Help/About, and the
+  day-of-year slider (arrows / PageUp-Down / Home / End; `aria-valuetext` with units).
+
+### Files touched (foundation untouched)
+- `index.html` — added `#sim-status`; added `aria-label`s to the two canvases;
+  removed `aria-live` from `#sky-desc`.
+- `simulation.js` — added `announce()` / `currentStateSpoken()` / `skyPhaseWords()`
+  and wired commit-time calls; no behavior/physics/number changes.
+- No CSS needed (existing `.sr-only` reused). Foundation files unchanged.

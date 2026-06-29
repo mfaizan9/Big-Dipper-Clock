@@ -44,13 +44,14 @@ const PI             = 3.141592653589793;
 
 /* -------------------------------------------------------------------------- */
 /*  Daylight-saving setup (frame_1/DoAction.as lines 97-104)                  */
-/*  AS used getYear(); we use the true current year so DST detection matches   */
-/*  the user's locale correctly (see CONVERSION_NOTES.md).                     */
+/*  Used ONLY for the informational "daylight saving time in effect" placard.  */
+/*  The original does NOT use a DST offset for the sky position (see update());*/
+/*  we use the true current year here so the placard is correct for the user's */
+/*  locale (the original's getYear() math made its sky DST delta zero).         */
 /* -------------------------------------------------------------------------- */
 const currentYear = new Date().getFullYear();
 const standardOffset       = new Date(currentYear, 0, 1).getTimezoneOffset();   // Jan 1
 const daylightSavingOffset = new Date(currentYear, 6, 1).getTimezoneOffset();   // Jul 1
-const daylightSavingDelta  = (daylightSavingOffset - standardOffset) / 1440;     // in days
 
 /* -------------------------------------------------------------------------- */
 /*  Single source of truth for state                                          */
@@ -121,6 +122,7 @@ const systemBtn   = document.getElementById("system-clock-btn");
 const doySlider   = document.getElementById("doy-slider");
 const doyMonths   = document.getElementById("doy-months");
 const doyCursor   = document.getElementById("doy-cursor");
+const simStatus   = document.getElementById("sim-status");
 
 let prefersReducedMotion = false; // this sim has no continuous motion, but honor it anyway
 
@@ -174,12 +176,20 @@ function update() {
   const minute = Math.floor(fmin);
   const second = Math.floor(60 * (fmin - minute));
 
+  // Placard only (informational): is the chosen date within DST for this locale?
   const d = new Date(currentYear, mi, dateNum, hour, minute, second);
   state.dstActive = (d.getTimezoneOffset() === daylightSavingOffset) &&
                     (daylightSavingOffset !== standardOffset);
-  const delta = state.dstActive ? daylightSavingDelta : 0;
 
-  const solarDaysSinceZero = state.dayOfYear + state.timeOfDay - 78.5 + delta;
+  // PARITY: the original Flash sim does NOT apply a DST correction to the
+  // celestial position. Its ActionScript uses currentYear = now.getYear()
+  // (which returns the year MINUS 1900, e.g. 126 for 2026) and feeds that back
+  // into new Date(currentYear, ...), creating dates in year 126 AD where no DST
+  // exists -- so its daylightSavingDelta evaluates to 0 and the sky is driven
+  // straight from the displayed clock time. Applying a real DST shift here
+  // offset every DST-window date (~Mar-Nov) by one hour versus the original, so
+  // we match the original exactly and apply no DST offset to the sky.
+  const solarDaysSinceZero = state.dayOfYear + state.timeOfDay - 78.5;
 
   renderAll(solarDaysSinceZero);
 }
@@ -324,10 +334,12 @@ function drawSky(rotDeg, op) {
   ground.addColorStop(0.45, "#81c851");
   ground.addColorStop(1, "#5e9636");
   ctx.fillStyle = ground;
-  // gentle hill: dip at the edges like the original ground shape
+  // Horizon curves UP toward the left/right edges (concave-up valley): a
+  // wide-angle / fish-eye effect of mapping a large sky angle onto a flat
+  // rectangle. Matches shapes/277.svg, whose top edge dips ~15px in the middle.
   ctx.beginPath();
-  ctx.moveTo(0, GROUND_TOP + 14);
-  ctx.quadraticCurveTo(SKY_W / 2, GROUND_TOP - 12, SKY_W, GROUND_TOP + 14);
+  ctx.moveTo(0, GROUND_TOP);
+  ctx.quadraticCurveTo(SKY_W / 2, GROUND_TOP + 30, SKY_W, GROUND_TOP);
   ctx.lineTo(SKY_W, SKY_H);
   ctx.lineTo(0, SKY_H);
   ctx.closePath();
@@ -547,6 +559,43 @@ function updateLiveDescriptions(rotDeg, op) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Screen-reader status announcements (audio pass)                            */
+/*  Fired only on COMMIT/RELEASE (not per drag tick) through one polite live   */
+/*  region, with quantity names and units spoken as words.                     */
+/* -------------------------------------------------------------------------- */
+function skyPhaseWords() {
+  if (lastSkyOpacity > 0.85) return "daytime, sky bright";
+  if (lastSkyOpacity > 0.15) return "twilight";
+  return "night, sky dark and stars prominent";
+}
+
+// Full current state as a spoken sentence: date, time (with units), sky, DST.
+function currentStateSpoken() {
+  const doy = getDayOfYear();
+  let mi = 0;
+  while (doy >= MONTH_POINTS[mi] && mi < 13) mi++;
+  mi -= 1;
+  const dayOfMonth = doy - MONTH_POINTS[mi] + 1;
+
+  // time spoken with explicit unit words (hours / minutes) plus the clock form
+  const tod = getTimeOfDay();
+  let h = Math.floor(24 * tod);
+  const minf = 60 * (24 * tod - h);
+  let mn = Math.floor(minf + 0.5);
+  if (mn === 60) { h = (h + 1) % 24; mn = 0; }
+  const hWord = h + (h === 1 ? " hour " : " hours ");
+  const mWord = mn + (mn === 1 ? " minute" : " minutes");
+  const dst = state.dstActive ? " Daylight saving time in effect." : "";
+
+  return MONTH_LABELS_FULL[mi] + " " + dayOfMonth + ", time of day " + hWord + mWord +
+    " (" + traditionalTimeString + "). The sky is " + skyPhaseWords() + "." + dst;
+}
+
+function announce(message) {
+  if (simStatus) simStatus.textContent = message;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Time text-field input (Time Of Day Panel.as setTimeByTextFields)          */
 /* -------------------------------------------------------------------------- */
 function commitTimeFields() {
@@ -555,8 +604,10 @@ function commitTimeFields() {
   if (!isFinite(hour) || isNaN(hour) || !isFinite(min) || isNaN(min) ||
       hour < 0 || hour > 23 || min < 0 || min > 59) {
     syncTimePanel();   // invalid -> restore display (AS: update())
+    announce("Invalid time entry ignored. " + currentStateSpoken());
   } else {
     setTimeOfDay((((hour + min / 60) / 24) % 1 + 1) % 1);
+    announce("Time changed. " + currentStateSpoken());
   }
 }
 
@@ -570,8 +621,10 @@ function commitDateFields() {
   if (candidate === undefined || !isFinite(candidate) || isNaN(candidate) ||
       candidate < MONTH_POINTS[month] || candidate >= MONTH_POINTS[month + 1]) {
     syncDatePanel();   // invalid -> restore display
+    announce("Invalid date entry ignored. " + currentStateSpoken());
   } else {
     setDayOfYear(candidate);
+    announce("Date changed. " + currentStateSpoken());
   }
 }
 
@@ -662,6 +715,7 @@ function endClockDrag(ev) {
   if (!clockDrag) return;
   clockDrag = null;
   try { clockCanvas.releasePointerCapture?.(ev.pointerId); } catch (e) {}
+  announce("Time changed. " + currentStateSpoken());   // announce on release, not per tick
 }
 
 /* -------------------------------------------------------------------------- */
@@ -711,6 +765,7 @@ function endDoyDrag(ev) {
   if (!doyDragging) return;
   doyDragging = false;
   try { doySlider.releasePointerCapture?.(ev.pointerId); } catch (e) {}
+  announce("Date changed. " + currentStateSpoken());   // announce on release, not per tick
 }
 
 function doyKey(ev) {
@@ -768,16 +823,25 @@ function wire() {
   buildMonthStrip();
 
   // masthead Reset
-  document.addEventListener("sim-reset", () => reset());
+  document.addEventListener("sim-reset", () => {
+    reset();
+    announce("Simulation reset. " + currentStateSpoken());
+  });
 
   // show details
   showDetails.addEventListener("change", () => {
     state.showLabels = showDetails.checked;
     update();
+    announce(showDetails.checked
+      ? "Constellation labels and pointer line shown."
+      : "Constellation labels and pointer line hidden.");
   });
 
   // set to system clock
-  systemBtn.addEventListener("click", () => setToNow());
+  systemBtn.addEventListener("click", () => {
+    setToNow();
+    announce("Set to system clock. " + currentStateSpoken());
+  });
 
   // time fields: commit on Enter or blur; live-typing waits for commit
   hourInput.addEventListener("keydown", (e) => { if (e.key === "Enter") commitTimeFields(); });

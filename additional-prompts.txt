@@ -76,6 +76,46 @@ These are the follow-up prompts given AFTER the initial Flash -> HTML5 conversio
 7. PROMPT: "write additional prompts in txt file within html5 folder."
    ACTION: This file.
 
+--------------------------------------------------------------------------------
+8. PROMPT: audio.txt -- "SCREEN-READER / AUDIO-DESCRIPTION RETROFIT" (make the sim
+   fully usable by audio alone on NVDA + VoiceOver; narration-only, no behavior
+   change).
+   ACTION: Accessibility-only pass.
+   - index.html: added a dedicated commit-time status live region
+     <p id="sim-status" role="status" aria-live="polite" class="sr-only">; added
+     aria-label to both canvases ("Northern sky diagram", "Time of day clock");
+     removed aria-live from #sky-desc (it is now a read-on-demand description, so it
+     no longer floods per drag tick).
+   - simulation.js: added announce() + currentStateSpoken() + skyPhaseWords(); fire
+     announcements ONLY on commit/release (time/date field commit, clock-hand drag
+     release, day-strip drag release, show-details toggle, set-to-system-clock,
+     reset). Time is spoken with unit words: "13 hours 17 minutes (1:17 PM)"; date as
+     "June 17"; slider aria-valuetext carries "(day 168 of 365)"; DST and sky phase
+     spoken as words. Keyboard slider relies on its own aria-valuetext (no double
+     announce). Verified no per-tick flooding (status unchanged during drag, updates
+     once on release) and no console errors.
+   - ACCESSIBILITY.md: appended an "AUDIO / SCREEN-READER PASS" section.
+   - Foundation files untouched. Final NVDA/VoiceOver confirmation still needs a
+     human listening test (not claimed as verified).
+
+--------------------------------------------------------------------------------
+9. PROMPT: "the two versions ... are dealing with system time differently. The
+   displayed positions are offset by 1 hr ... applies to all dates from March 9 to
+   Nov. 1, so something about how daylight savings is addressed."
+   ACTION: Fixed a DST parity bug. The original AS sets currentYear = now.getYear()
+   (year MINUS 1900, e.g. 126) and feeds it back into new Date(126, ...), i.e. dates
+   in year 126 AD where no DST exists -- so its daylightSavingDelta is 0 and the sky
+   is NEVER DST-shifted. An earlier version of this port had "corrected" that with
+   the real year + real DST delta, which applied a genuine -1 hour shift across the
+   DST window (~Mar-Nov) and put the stars 1 hour (~15 deg) off from the original.
+   Fix in simulation.js update(): the sky now uses
+     solDaysSinceZero = dayOfYear + timeOfDay - 78.5   (NO DST offset),
+   matching the original exactly. The "daylight saving time in effect" placard is
+   kept (informational) and still uses the real current year so it shows only on true
+   DST dates. Verified: rotation now +15.04 deg vs the buggy value (= one hour),
+   orientation matches the original's left screenshot; no console errors.
+   Doc: CONVERSION_NOTES.md deviation #3 rewritten.
+
 ================================================================================
 RECURRING NOTE -- LOCAL DEV CACHING
 ================================================================================

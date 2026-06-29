@@ -22,6 +22,9 @@
   <div class="app-shell">
     <kl-unl-masthead sim-id="dipperclock" json-url="foundation/contents.json"></kl-unl-masthead>
 
+    <!-- Commit-time status announcements (updated on release/commit, not per tick) -->
+    <p id="sim-status" class="sr-only" role="status" aria-live="polite"></p>
+
     <main class="app-layout" id="app-layout">
 
       <!-- ============ LEFT: Sky Diagram ============ -->
@@ -32,14 +35,17 @@
           <div class="panel__canvas-wrap sky-stage">
             <canvas id="sky-canvas" width="880" height="790"
                     role="img"
+                    aria-label="Northern sky diagram"
                     aria-describedby="sky-desc"></canvas>
+            <!-- "N" cardinal label, centered on the green ground (the horizon) -->
+            <span class="sky-stage__dir" aria-hidden="true">N</span>
           </div>
 
-          <!-- Spoken description of what the sky currently shows -->
-          <p id="sky-desc" class="sr-only" aria-live="polite"></p>
+          <!-- Spoken description of what the sky currently shows (read on demand;
+               live change announcements go through #sim-status instead) -->
+          <p id="sky-desc" class="sr-only"></p>
 
           <div class="sky-controls">
-            <span class="sky-controls__dir" aria-hidden="true">N</span>
             <span class="control-choice sky-controls__toggle">
               <input type="checkbox" id="show-details" checked>
               <label for="show-details">show details</label>
@@ -59,7 +65,8 @@
             <div class="clock-block">
               <div class="panel__canvas-wrap clock-stage">
                 <canvas id="clock-canvas" width="360" height="360"
-                        role="img" aria-describedby="clock-desc"></canvas>
+                        role="img" aria-label="Time of day clock"
+                        aria-describedby="clock-desc"></canvas>
               </div>
               <p id="clock-desc" class="sr-only"></p>
             </div>

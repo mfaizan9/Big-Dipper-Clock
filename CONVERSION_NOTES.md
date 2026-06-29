@@ -91,18 +91,27 @@ The text-label **anchor points** in the star frame were measured from the
    was added — matching the original sim, whose Title Bar had empty `aboutLinkageName`
    and `helpLinkageName` (it showed only "reset"). The foundation's modernized
    Help/About text is used as-is.
-3. **DST detection.** Two small corrections, both of which leave behavior **identical**
-   for DST-observing locales (such as the University of Nebraska's Central Time):
-   - `frame_1/DoAction.as` uses `now.getYear()` (year − 1900) fed to
-     `new Date(currentYear, …)`, where small year values are interpreted inconsistently.
-     The port uses the true current year (`new Date().getFullYear()`) so DST detection is
-     correct.
-   - The AS sets the placard with `d.getTimezoneOffset() == daylightSavingOffset`. In a
-     locale that does **not** observe DST, `standardOffset == daylightSavingOffset`, so
-     that test is always true and the original would show "daylight saving time in effect"
-     **year-round** (a factual error; the sky delta is 0 regardless). The port adds the
-     guard `daylightSavingOffset !== standardOffset`, suppressing the false placard in
-     non-DST locales. For DST locales the two offsets differ, so this changes nothing.
+3. **Daylight saving — the sky is NOT DST-corrected (parity), the placard IS.**
+   The original's DST handling is effectively a no-op for the celestial position, and the
+   port matches that exactly:
+   - `frame_1/DoAction.as` sets `currentYear = now.getYear()`, which returns the year
+     **minus 1900** (e.g. 126 for 2026), then feeds that back into
+     `new Date(currentYear, …)` — i.e. dates in **year 126 AD**, where no daylight saving
+     exists. So `daylightSavingDelta = (jul1Offset − jan1Offset)/1440` evaluates to **0**
+     and the line `setSolarDaysSinceZero(dayOfYear + timeOfDay − 78.5 + delta)` uses
+     `delta = 0`. The original therefore drives the sky **straight from the displayed
+     clock time, with no DST shift**.
+   - An earlier version of this port "corrected" that by using the real current year and a
+     real DST delta. That introduced a genuine −1-hour shift during the DST window, which
+     made every date from ~March to November render one hour off from the original
+     (confirmed by side-by-side testing). **Fixed:** the sky now uses
+     `dayOfYear + timeOfDay − 78.5` with **no DST offset**, matching the original.
+   - The **placard** ("daylight saving time in effect") is purely informational and is the
+     one place the port still uses the *true* current year, so it correctly appears only
+     for dates that are actually in DST for the viewer's locale (with a
+     `daylightSavingOffset !== standardOffset` guard so non-DST locales never show a false
+     placard). This is a deliberate, behavior-neutral improvement over the original's
+     year-126 placard logic and does not affect any star position.
 4. **No MathJax / no mathematics.** This sim contains **no equations or mathematical
    notation** anywhere in its UI (only plain numeric data values: hours, minutes, day
    number, month names, and clock hour labels). There is therefore nothing for MathJax to
