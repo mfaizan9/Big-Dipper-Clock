@@ -517,6 +517,10 @@ function syncTimePanel() {
   else if (h > 12)    traditionalTimeString = (h - 12) + ":" + minStr + " PM";
   else                traditionalTimeString = hourStr + ":" + minStr + " AM";
 
+  // clock slider value (minutes since midnight) + spoken time, for keyboard use
+  clockCanvas.setAttribute("aria-valuenow", String(h * 60 + min));
+  clockCanvas.setAttribute("aria-valuetext", traditionalTimeString);
+
   dstNote.hidden = !state.dstActive;
 }
 
@@ -718,6 +722,81 @@ function endClockDrag(ev) {
   announce("Time changed. " + currentStateSpoken());   // announce on release, not per tick
 }
 
+// Current displayed hour + minute (same rounding as syncTimePanel).
+function currentHM() {
+  const tod = state.timeOfDay;
+  let h = Math.floor(24 * tod);
+  const minf = 60 * (24 * tod - h);
+  let m = Math.floor(minf + 0.5);
+  if (m === 60) { h = (h + 1) % 24; m = 0; }
+  return { h, m };
+}
+
+// Set the time of day from whole hours + minutes (wraps into [0,1) like the AS).
+function setTimeHM(h, m) {
+  setTimeOfDay((((h + m / 60) / 24) % 1 + 1) % 1);
+}
+
+// Clock keyboard control (role="slider"): arrows = 1 minute, Page = 1 hour,
+// Home/End = 12:00 AM / 11:59 PM. Time wraps within the day. The focused
+// slider's aria-valuetext (updated in syncTimePanel) is what the screen reader
+// announces, so we do not also push to #sim-status (avoids double-speaking).
+function clockKey(ev) {
+  const { h, m } = currentHM();
+  let total = h * 60 + m;     // minutes since midnight
+  let handled = true;
+  switch (ev.key) {
+    case "ArrowUp": case "ArrowRight":  total += 1; break;
+    case "ArrowDown": case "ArrowLeft": total -= 1; break;
+    case "PageUp":   total += 60; break;
+    case "PageDown": total -= 60; break;
+    case "Home":     total = 0; break;
+    case "End":      total = 23 * 60 + 59; break;
+    default: handled = false;
+  }
+  if (!handled) return;
+  ev.preventDefault();
+  total = ((total % 1440) + 1440) % 1440;
+  setTimeHM(Math.floor(total / 60), total % 60);
+}
+
+// Arrow-key steppers for the number fields (Tab to the field, then Up/Down).
+// These are text inputs (not sliders), so they announce through #sim-status.
+// syncTimePanel/syncDatePanel skip the focused field (so typing isn't clobbered),
+// so the steppers refresh their own field explicitly after changing state.
+function refreshTimeFields() {
+  const { h, m } = currentHM();
+  hourInput.value = (h < 10 ? "0" : "") + h;
+  minuteInput.value = (m < 10 ? "0" : "") + m;
+}
+function refreshDateFields() {
+  const doy = getDayOfYear();
+  let mi = 0;
+  while (doy >= MONTH_POINTS[mi] && mi < 13) mi++;
+  mi -= 1;
+  dayInput.value = String(doy - MONTH_POINTS[mi] + 1);
+  monthSelect.selectedIndex = mi;
+}
+function stepHour(dir) {
+  const { h, m } = currentHM();
+  setTimeHM(((h + dir) % 24 + 24) % 24, m);
+  refreshTimeFields();
+  announce("Time changed. " + currentStateSpoken());
+}
+function stepMinute(dir) {
+  const { h, m } = currentHM();
+  let total = h * 60 + m + dir;
+  total = ((total % 1440) + 1440) % 1440;
+  setTimeHM(Math.floor(total / 60), total % 60);
+  refreshTimeFields();
+  announce("Time changed. " + currentStateSpoken());
+}
+function stepDay(dir) {
+  setDayOfYear(getDayOfYear() + dir);   // wraps like the AS (and the strip slider)
+  refreshDateFields();
+  announce("Date changed. " + currentStateSpoken());
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Day-of-year strip slider (Day Of Year Slider.as)                          */
 /* -------------------------------------------------------------------------- */
@@ -843,9 +922,17 @@ function wire() {
     announce("Set to system clock. " + currentStateSpoken());
   });
 
-  // time fields: commit on Enter or blur; live-typing waits for commit
-  hourInput.addEventListener("keydown", (e) => { if (e.key === "Enter") commitTimeFields(); });
-  minuteInput.addEventListener("keydown", (e) => { if (e.key === "Enter") commitTimeFields(); });
+  // time fields: commit on Enter or blur; Up/Down arrows step the value
+  hourInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") commitTimeFields();
+    else if (e.key === "ArrowUp")   { e.preventDefault(); stepHour(1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); stepHour(-1); }
+  });
+  minuteInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") commitTimeFields();
+    else if (e.key === "ArrowUp")   { e.preventDefault(); stepMinute(1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); stepMinute(-1); }
+  });
   hourInput.addEventListener("blur", commitTimeFields);
   minuteInput.addEventListener("blur", commitTimeFields);
   // restrict to digits (AS: restrict = "0-9")
@@ -853,16 +940,21 @@ function wire() {
     el.addEventListener("input", () => { el.value = el.value.replace(/[^0-9]/g, ""); });
   });
 
-  // date fields
-  dayInput.addEventListener("keydown", (e) => { if (e.key === "Enter") commitDateFields(); });
+  // date fields: commit on Enter or blur; Up/Down arrows step the day of year
+  dayInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") commitDateFields();
+    else if (e.key === "ArrowUp")   { e.preventDefault(); stepDay(1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); stepDay(-1); }
+  });
   dayInput.addEventListener("blur", commitDateFields);
   monthSelect.addEventListener("change", commitDateFields);
 
-  // clock hand drag (Pointer Events: one path for mouse + touch)
+  // clock: hand drag (Pointer Events: one path for mouse + touch) + keyboard
   clockCanvas.addEventListener("pointerdown", beginClockDrag);
   clockCanvas.addEventListener("pointermove", moveClockDrag);
   clockCanvas.addEventListener("pointerup", endClockDrag);
   clockCanvas.addEventListener("pointercancel", endClockDrag);
+  clockCanvas.addEventListener("keydown", clockKey);
 
   // day-of-year strip drag + keyboard
   doySlider.addEventListener("pointerdown", beginDoyDrag);

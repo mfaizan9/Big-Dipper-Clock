@@ -116,6 +116,29 @@ These are the follow-up prompts given AFTER the initial Flash -> HTML5 conversio
    orientation matches the original's left screenshot; no console errors.
    Doc: CONVERSION_NOTES.md deviation #3 rewritten.
 
+--------------------------------------------------------------------------------
+10. PROMPT: "1. Need keyboard interaction with the clock. 2. The number
+    display/entry (hour, minute, day) would benefit from being keyboard adjustable
+    too (tab to them, then up/down arrow to increase/decrease)."
+    ACTION: Added keyboard control.
+    - Clock: the clock canvas is now role="slider" tabindex="0" with aria-valuemin
+      0 / aria-valuemax 1439 (minutes since midnight) / aria-valuenow / aria-valuetext
+      (spoken clock time). Keys: Left/Down = -1 min, Right/Up = +1 min, PageDown/Up =
+      -/+1 hour, Home = 12:00 AM, End = 11:59 PM; time wraps within the day. Hands stay
+      pointer-draggable. aria-valuenow/valuetext updated in syncTimePanel.
+    - Number fields: hour/minute/day inputs now step on Up/Down arrows (hour +/-1 wrap
+      0-23; minute +/-1 crossing the hour; day +/-1 crossing months and updating the
+      month select). Because syncTimePanel/syncDatePanel skip the focused field, the
+      steppers call refreshTimeFields()/refreshDateFields() so the value updates live.
+    - Slider-role controls (clock, day strip) announce via aria-valuetext on keyboard
+      change; text-field steppers announce via #sim-status. No double-announce.
+    - Verified via the Browser pane (javascript_tool): clock focusable, all keys work
+      and wrap correctly, fields live-update, sky rotates on clock keypress, day step
+      crosses months; no console errors. simulation.js node --check passes.
+    Files: index.html (clock canvas role/aria), simulation.js (clockKey, stepHour/
+    stepMinute/stepDay, refresh helpers, wiring, syncTimePanel aria). ACCESSIBILITY.md
+    keyboard section updated.
+
 ================================================================================
 RECURRING NOTE -- LOCAL DEV CACHING
 ================================================================================

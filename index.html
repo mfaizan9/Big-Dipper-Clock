@@ -65,7 +65,10 @@
             <div class="clock-block">
               <div class="panel__canvas-wrap clock-stage">
                 <canvas id="clock-canvas" width="360" height="360"
-                        role="img" aria-label="Time of day clock"
+                        role="slider" tabindex="0"
+                        aria-label="Time of day clock (drag the hands, or use arrow keys)"
+                        aria-valuemin="0" aria-valuemax="1439"
+                        aria-valuenow="0" aria-valuetext=""
                         aria-describedby="clock-desc"></canvas>
               </div>
               <p id="clock-desc" class="sr-only"></p>

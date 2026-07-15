@@ -40,17 +40,29 @@ Target: WCAG 2.1 AA (AAA where reasonable). Human screen-reader QA is still requ
 - **Time of day:** hour and minute `<input>` fields (digits only, like the AS `restrict
   = "0-9"`). Commit on Enter or blur; invalid input restores the previous display
   (matches `setTimeByTextFields`). Each field has an associated (visually hidden) label.
-- **Day of year:** a day `<input>` + a real `<select>` for the month (both labeled), and
-  a **fully keyboard-operable** day-of-year slider strip:
+  **Up/Down arrows step the value** (hour ±1 wrapping 0–23; minute ±1 crossing the hour),
+  and the field updates live while focused.
+- **The clock is itself a keyboard-operable control** (`role="slider"`, `tabindex="0"`,
+  `aria-valuemin=0`, `aria-valuemax=1439` minutes-since-midnight, `aria-valuenow`, and
+  `aria-valuetext` = the spoken clock time, e.g. "1:12 AM"). Focus it and use: Left/Down
+  −1 minute, Right/Up +1 minute, PageDown/PageUp ∓1 hour, Home → 12:00 AM, End → 11:59
+  PM (time wraps within the day). The hands remain pointer-draggable (mouse + touch);
+  both paths mutate the same state.
+- **Day of year:** a day `<input>` + a real `<select>` for the month (both labeled). The
+  day field's **Up/Down arrows step the day of year ±1** (crossing month boundaries and
+  updating the month `<select>`). Plus a **fully keyboard-operable** day-of-year slider
+  strip:
   - `role="slider"`, `tabindex="0"`, `aria-valuemin=0`, `aria-valuemax=364`,
     `aria-valuenow`, and `aria-valuetext` (e.g. "March 21 (day 80 of 365)").
   - Left/Down −1 day, Right/Up +1 day, PageDown/PageUp ∓7 days, Home → Jan 1,
     End → Dec 31. Tab moves away normally; the slider is never a focus trap and is not
     blocked by canvas pointer handlers.
-- **Clock hands** are pointer-draggable (mouse + touch); the equivalent keyboard path is
-  the HH:MM fields, which set the identical state.
 - **set to system clock** and **show details** are a native `<button>` and
   `<input type="checkbox">`.
+- The clock slider and day-of-year slider announce their own `aria-valuetext` on keyboard
+  change (so the screen reader speaks the new value); the text-field steppers instead
+  announce through `#sim-status` (text inputs don't expose `aria-valuetext`). Neither
+  path double-announces.
 
 ## Pointer / touch (works without hover)
 - All dragging uses Pointer Events, so mouse and touch share one path. Draggable surfaces
